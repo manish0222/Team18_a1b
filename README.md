@@ -9,7 +9,7 @@ We inherited the P2 RideSync backend from Assignment 1 (PostgreSQL + MongoDB) an
 |---|---|
 | **Team** | Team 18 |
 | **GitHub repository** | https://github.com/manish0222/Team18_a1b (fork of `Neelesh-Srivastava435/2026201031_a1`; Assignment 1 history kept) |
-| **Final commit hash** | `<FILL: run git rev-parse HEAD after final push>` |
+| **Final commit hash** | `a0a636b6ba707dab8406fa83873d4c2b0a89d420` |
 | **Demo video (≤ 5 min)** | [Watch on YouTube](https://youtu.be/Qw3wPnJZpck) (script: [docs/demo_script.md](docs/demo_script.md)) |
 | **Contributions** | Per-person breakdown in [docs/CONTRIBUTIONS.md](docs/CONTRIBUTIONS.md) |
 [![RideSync Console demo](https://img.youtube.com/vi/Qw3wPnJZpck/maxresdefault.jpg)](https://youtu.be/Qw3wPnJZpck)
