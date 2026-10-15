@@ -1,0 +1,43 @@
+/* RideSync design tokens - see docs/design/style_guide.md */
+:root {
+  /* colour */
+  --ink: #1b2430;          /* text, sidebar, plate lettering */
+  --ink-2: #3c4856;        /* secondary text */
+  --muted: #5d6875;        /* hints, meta (4.9:1 on paper) */
+  --paper: #f4f6f8;        /* page background */
+  --surface: #ffffff;      /* panels */
+  --line: #d9dee4;         /* borders, table rules */
+  --line-soft: #e8ecf0;
+  --signal: #0b7a72;       /* primary actions, positive data */
+  --signal-ink: #075a54;
+  --signal-wash: #e3f2f0;
+  --auto: #f2b705;         /* "live" only: active trip, origin, new pings */
+  --auto-ink: #7a5a00;
+  --auto-wash: #fff6d6;
+  --danger: #c2412d;
+  --danger-wash: #fbebe8;
+  --blue: #3b5bdb;
+
+  /* type */
+  --font: 'Barlow', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-cond: 'Barlow Condensed', 'Arial Narrow', 'Roboto Condensed', sans-serif;
+  --fs-xs: 0.78rem;
+  --fs-sm: 0.875rem;
+  --fs-md: 1rem;
+  --fs-lg: 1.25rem;
+  --fs-xl: 1.6rem;
+  --fs-2xl: 2.15rem;
+
+  /* space & shape */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 24px;
+  --s6: 32px;
+  --s7: 48px;
+  --r-ctl: 6px;
+  --r-panel: 10px;
+  --sidebar-w: 264px;
+  --focus: 0 0 0 3px rgba(11, 122, 114, 0.35);
+}
