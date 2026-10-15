@@ -1,0 +1,71 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+body{margin:0;background:#fff;font-family:'Comic Sans MS','Segoe Print','Chalkboard',cursive;color:#333}
+.frame{width:1200px;height:760px;position:relative;border:2px solid #333;margin:20px;box-sizing:border-box;background:#fff;overflow:hidden}
+.frame.mobile{width:390px;height:760px}
+.title{position:absolute;left:0;right:0;top:-0px;background:#333;color:#fff;font-size:15px;padding:4px 10px}
+.side{position:absolute;left:0;top:28px;bottom:0;width:200px;border-right:2px solid #333;background:#f2f2f2;padding:12px;box-sizing:border-box;font-size:13px}
+.side div{margin:6px 0}.side .g{color:#777;font-size:11px;margin-top:14px}.side .on{background:#ccc;padding:3px 6px}
+.main{position:absolute;left:216px;right:16px;top:44px;bottom:16px}
+.box{position:absolute;border:2px dashed #555;border-radius:6px;padding:8px;box-sizing:border-box;font-size:13px;background:#fafafa}
+.box b{display:block;margin-bottom:4px;font-size:14px}
+.h1{position:absolute;font-size:26px;font-weight:bold}
+.note{position:absolute;font-size:12px;color:#b00;max-width:260px}
+.line{height:8px;background:#ddd;margin:6px 0;border-radius:3px}
+.btn{display:inline-block;border:2px solid #333;border-radius:4px;padding:2px 10px;margin:4px 4px 0 0;font-size:12px;background:#fff}
+.btn.p{background:#555;color:#fff}
+.input{border:1.5px solid #555;height:22px;margin:4px 0 8px;background:#fff;font-size:11px;padding:2px 4px;box-sizing:border-box;color:#888}
+.plate{display:inline-block;border:2px solid #333;padding:0 6px;font-size:12px;font-weight:bold}
+table{width:100%;border-collapse:collapse;font-size:11px}td,th{border-bottom:1px solid #aaa;padding:3px;text-align:left}
+</style></head><body>
+<!-- shared sidebar -->
+<template id="side"><div class="side"><div style="border:1.5px dashed #555;padding:6px;background:#fff">Acting as: [rider search ▾]<br><small>name · balance</small></div><div>Overview</div><div class="g">Rider</div><div class="b1">Book a ride</div><div class="b2">Wallet &amp; audit</div><div class="g">Operations</div><div class="b3">Live map</div><div class="b4">Fleet analytics</div><div class="b5">Reviews &amp; catalog</div><div class="g">Records</div><div class="b6">Riders</div><div>Vehicles</div><div>Trips</div></div></template>
+
+<div class="frame" id="wf-book"><div class="title">WF-1 Book a ride (Workflow 1) — rider</div><x data-on="b1"></x>
+<div class="main"><div class="h1" style="left:0;top:0">Book a ride</div><div style="position:absolute;top:40px;font-size:12px">one line: what happens (sp_book_trip_atomic)</div>
+<div class="box" style="left:0;top:70px;width:430px;height:360px"><b>Trip details (form)</b>Rider<div class="input">Ananya Reddy (from "Acting as")</div>Vehicle<div class="input">search plate… or pick on map</div>Fare ₹<div class="input">25.00</div><span class="btn">₹25</span><span class="btn">₹80</span><span class="btn">more than balance</span><br><br><span class="btn p">Book ride</span></div>
+<div class="box" style="left:450px;top:70px;width:510px;height:120px"><b>Wallet</b>BEFORE ₹365.49 &nbsp; → &nbsp; AFTER ₹320.49<br><small>(after = only once booked)</small></div>
+<div class="box" style="left:450px;top:205px;width:510px;height:290px"><b>Result area</b>SUCCESS: status + plate + trip stepper (Requested → In transit → Completed)<br>"New audit log row (written by trigger)" table: when | action | amount | before | after<br>[Start trip] [Cancel &amp; refund]<br><br>FAILURE (red): plain-language title + why + the fix:<br>• insufficient → shows balance/fare/shortfall, [Top up ₹X]<br>• already on a trip → shows blocking trip + its buttons<br>▸ "What the database said" (raw message)</div>
+<div class="note" style="left:20px;top:460px">Decision: failure explains the cause AND offers the next action on the same screen, so the partial unique index can be demoed without leaving the page.</div></div></div>
+
+<div class="frame" id="wf-audit"><div class="title">WF-2 Wallet &amp; audit trail — rider / auditor</div><x data-on="b2"></x>
+<div class="main"><div class="h1" style="left:0;top:0">Wallet &amp; audit trail</div>
+<div class="box" style="left:0;top:50px;width:960px;height:70px"><b>Filters</b>[Rider search ▾] &nbsp; Period: (All)(7d)(30d)(90d)(Custom: from/to dates)</div>
+<div class="box" style="left:0;top:135px;width:620px;height:220px"><b>Balance over time</b>step line chart of running balance</div>
+<div class="box" style="left:640px;top:135px;width:320px;height:220px"><b>Summary</b>opening | closing<br>money in | money out<br>✓ running balance consistent<br>Top up [ ₹ ] [Add]</div>
+<div class="box" style="left:0;top:370px;width:960px;height:290px"><b>Ledger (paginated, 20/page)</b><table><tr><th>When</th><th>Movement</th><th>Amount</th><th>Before</th><th>After</th><th>Running ✓</th><th>Trip</th></tr><tr><td>13 Oct</td><td>Fare held</td><td>−45</td><td>365</td><td>320</td><td>320 ✓</td><td>1d43…</td></tr><tr><td>…</td><td></td><td></td><td></td><td></td><td></td><td></td></tr></table><br>« Prev  page 1 of N  Next »</div></div></div>
+
+<div class="frame" id="wf-analytics"><div class="title">WF-3 Fleet analytics (Workflow 2 + materialized view) — ops manager</div><x data-on="b4"></x>
+<div class="main"><div class="h1" style="left:0;top:0">Fleet analytics</div>
+<div class="box" style="left:0;top:50px;width:960px;height:170px"><b>Lifetime earnings snapshot (MV)</b>[trips] [earnings] [avg fare] [vehicles] &nbsp;&nbsp; "Last refreshed 22 min ago" <span class="btn p">Refresh snapshot</span><br>⚠ "N trips completed since refresh"<br>earnings by class (bars) &nbsp; | &nbsp; top 5 earners</div>
+<div class="box" style="left:0;top:235px;width:960px;height:200px"><b>7-day moving average (line chart, up to 3 vehicles)</b>legend: [plate ×] [plate ×] [+ add vehicle]</div>
+<div class="box" style="left:0;top:450px;width:960px;height:220px"><b>Daily ranking — DENSE_RANK()</b>Day [date] Class [▾]<table><tr><th>Rank</th><th>Vehicle</th><th>Class</th><th>Trips</th><th>Revenue</th><th>7-day avg</th><th></th></tr><tr><td>1</td><td><span class="plate">KA-5939</span></td><td>XL</td><td>2</td><td>197</td><td>168</td><td>Add to chart</td></tr></table>pagination</div></div></div>
+
+<div class="frame" id="wf-map"><div class="title">WF-4 Live map (Workflow 3) — dispatcher</div><x data-on="b3"></x>
+<div class="main"><div class="h1" style="left:0;top:0">Live map</div>
+<div class="box" style="left:0;top:50px;width:960px;height:60px"><b>Controls</b>Search from [HITEC City ▾] (or click map) · Pings from last (5)(15)(60) min · [Pause live] "updated 3 s ago"</div>
+<div class="box" style="left:0;top:125px;width:590px;height:520px"><b>Map (Leaflet + OSM)</b><div style="position:absolute;left:120px;top:90px;width:340px;height:340px;border:2px dashed #b00;border-radius:50%"></div><div style="position:absolute;left:283px;top:253px;width:16px;height:16px;background:#b00;border-radius:50%"></div><div style="position:absolute;left:250px;top:330px;font-size:11px">origin + 5 km circle; dots = vehicles; new = highlighted</div></div>
+<div class="box" style="left:610px;top:125px;width:350px;height:520px"><b>Nearest vehicles (sorted)</b>1 <span class="plate">KA-29</span> 335 m [Book]<br>2 <span class="plate">KA-97</span> 623 m [Book]<br>3 … <br><br><small>"New" tag when a vehicle appears on the next poll (every 5 s)</small></div></div></div>
+
+<div class="frame" id="wf-reviews"><div class="title">WF-5 Reviews &amp; catalog (Workflow 4) — ops / quality</div><x data-on="b5"></x>
+<div class="main"><div class="h1" style="left:0;top:0">Reviews &amp; catalog</div>
+<div class="box" style="left:0;top:50px;width:960px;height:60px"><b>Filters</b>[vehicle search] [from] [to]</div>
+<div class="box" style="left:0;top:125px;width:250px;height:200px"><b>Overall</b><span style="font-size:40px">4.03</span><br>★★★★☆ from 50,000</div>
+<div class="box" style="left:265px;top:125px;width:340px;height:200px"><b>Rating distribution</b>5★ ██████<br>4★ ███<br>3★ ██ …</div>
+<div class="box" style="left:620px;top:125px;width:340px;height:200px"><b>Top feedback tags</b>Clean car ━━━━━<br>Smooth drive ━━━ …</div>
+<div class="box" style="left:0;top:340px;width:470px;height:320px"><b>Latest reviews (paginated)</b>★★★★★ <span class="plate">KA-86</span> date<br>"comment" [tag][tag]</div>
+<div class="box" style="left:490px;top:340px;width:470px;height:320px"><b>VehicleMetadata catalog</b>[plate] [class ▾] [feature ▾]<br>grid of plates → pick one<br>— features ✓/– list<br>— inspection timeline (pass/fail)<br>— "show raw document" (JSON)</div></div></div>
+
+<div class="frame" id="wf-browse"><div class="title">WF-6 Browse (riders / vehicles / trips + detail) — ops</div><x data-on="b6"></x>
+<div class="main"><div class="h1" style="left:0;top:0">Riders</div>
+<div class="box" style="left:0;top:50px;width:960px;height:380px"><b>List: search + sort + table + pagination (25 rows/page, server-side)</b><div class="input" style="width:400px">search name/email</div><table><tr><th>Name</th><th>Email</th><th>Wallet</th><th>Trip</th><th></th></tr><tr><td>…</td><td>…</td><td>₹</td><td>● on a trip</td><td>Act as</td></tr><tr><td>…</td><td></td><td></td><td></td><td></td></tr></table><br>1–25 of 10,000 « Prev Page 1 of 400 Next »</div>
+<div class="box" style="left:0;top:445px;width:960px;height:220px"><b>Detail page (click a row)</b>header: name + [Act as] [Wallet history]<br>stats row · ACTIVE TRIP panel (yellow) with [Start] [Complete] [Cancel] ← moves trip through statuses<br>recent trips table → trip detail (stepper, audit rows for that trip, review)</div></div></div>
+
+<div class="frame mobile" id="wf-mobile"><div class="title">WF-7 Phone layout (Book)</div>
+<div style="position:absolute;top:28px;left:0;right:0;height:44px;background:#ddd;border-bottom:2px solid #333;padding:10px;box-sizing:border-box;font-size:13px">RideSync <span class="btn" style="float:right;margin:0">Menu</span></div>
+<div class="box" style="left:12px;top:90px;width:366px;height:300px"><b>Trip details</b>single column form; same fields</div>
+<div class="box" style="left:12px;top:400px;width:366px;height:110px"><b>Wallet</b>before → after</div>
+<div class="box" style="left:12px;top:520px;width:366px;height:220px"><b>Result</b>tables scroll sideways inside their panel</div></div>
+<script>
+const t=document.getElementById('side');
+document.querySelectorAll('x[data-on]').forEach(x=>{const n=t.content.cloneNode(true);n.querySelector('.'+x.dataset.on).classList.add('on');x.replaceWith(n);});
+</script></body></html>
