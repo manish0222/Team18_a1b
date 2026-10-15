@@ -105,6 +105,24 @@ docker compose up --build
 
 On Windows, install Docker Desktop from [docker.com](https://www.docker.com/products/docker-desktop/) and use the default WSL 2 backend. A PowerShell bootstrap script (`scripts/bootstrap-windows.ps1`) is also available as an alternative for users who prefer a native Windows install.
 
+### Option B (alternative) — Run Using Prebuilt Docker Images
+
+If the GHCR images have already been published, you can skip the local build and run prebuilt images instead. PostgreSQL and MongoDB are still pulled from their official registries.
+
+```bash
+git clone https://github.com/manish0222/Team18_a1b.git
+cd Team18_a1b
+docker compose -f docker-compose.images.yml up -d
+```
+
+- Web app: **http://localhost:8080**
+- API health: **http://localhost:4000/api/health**
+- Monitor with `docker compose -f docker-compose.images.yml ps` and `docker compose -f docker-compose.images.yml logs -f seed`
+- Stop with `docker compose -f docker-compose.images.yml down`
+- Data persists in Docker volumes unless explicitly removed
+
+
+
 ### Option C — Manual local installation
 
 Use this route if you prefer to install the dependencies yourself or cannot use the bootstrap/Docker route. The commands below cover Ubuntu/macOS and Windows PowerShell; use the commands for your operating system.
@@ -359,7 +377,7 @@ The original Assignment 1 README is kept at [docs/assignment1_README.md](docs/as
 | PALAKSH GHILDIYAL | 2026 |
 | MANISH GODBOLE | 2026201064 |
 | GREESHMA TRIVEDI | 2026 |
-| SAI HARSHITH YEKOJI | 2026 |
+| SAI HARSHITH YEKOJI | 2026201017 |
 
 ---
 
