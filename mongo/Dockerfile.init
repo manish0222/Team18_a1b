@@ -1,0 +1,5 @@
+FROM mongo:7
+
+COPY mongo/01_collections_and_indexes.js /scripts/01_collections_and_indexes.js
+
+CMD ["mongosh", "mongodb://mongo:27017/ridesync_db", "--quiet", "/scripts/01_collections_and_indexes.js"]

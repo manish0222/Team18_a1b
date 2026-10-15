@@ -1,0 +1,77 @@
+# Run with prebuilt application images published to GHCR.
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: ridesync_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    # host port 5433 so it never clashes with a PostgreSQL already installed on the PC
+    ports: ["5433:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ridesync_db"]
+      interval: 3s
+      retries: 30
+
+  mongo:
+    image: mongo:7
+    # host port 27018 so it never clashes with a MongoDB already installed on the PC
+    ports: ["27018:27017"]
+    volumes: [mongodata:/data/db]
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 3s
+      retries: 30
+
+  # collections + 2dsphere/TTL indexes (Assignment 1 script, unchanged logic)
+  mongo-init:
+    image: ghcr.io/harshith217/ridesync-mongo-init:latest
+    pull_policy: always
+    depends_on:
+      mongo: { condition: service_healthy }
+    restart: "no"
+
+  # schema + seeders + ledger back-fill (skips if already seeded)
+  seed:
+    image: ghcr.io/harshith217/ridesync-seed:latest
+    pull_policy: missing
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ridesync_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      MONGO_URI: mongodb://mongo:27017/
+      MONGO_DB: ridesync_db
+    depends_on:
+      postgres: { condition: service_healthy }
+      mongo-init: { condition: service_completed_successfully }
+    restart: "no"
+
+  api:
+    image: ghcr.io/harshith217/ridesync-api:latest
+    pull_policy: missing
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ridesync_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      MONGO_URI: mongodb://mongo:27017/
+      MONGO_DB: ridesync_db
+      CORS_ORIGIN: http://localhost:8080
+      SIMULATE_TELEMETRY: "true"
+    ports: ["4000:4000"]
+    depends_on:
+      seed: { condition: service_completed_successfully }
+
+  web:
+    image: ghcr.io/harshith217/ridesync-web:latest
+    pull_policy: missing
+    ports: ["8080:80"]
+    depends_on: [api]
+
+volumes:
+  pgdata:
+  mongodata:
