@@ -1,0 +1,21 @@
+{
+  "name": "ridesync-api",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Thin HTTP layer between the RideSync web front end and PostgreSQL + MongoDB",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node --test",
+    "test:integration": "node --test integration/workflows.integration.js"
+  },
+  "dependencies": {
+    "mongodb": "^6.12.0",
+    "pg": "^8.13.1"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
