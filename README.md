@@ -11,6 +11,7 @@ We inherited the P2 RideSync backend from Assignment 1 (PostgreSQL + MongoDB) an
 | **GitHub repository** | https://github.com/manish0222/Team18_a1b (fork of `Neelesh-Srivastava435/2026201031_a1`; Assignment 1 history kept) |
 | **Final commit hash** | `<FILL: run git rev-parse HEAD after final push>` |
 | **Demo video (≤ 5 min)** | `<FILL: video link>` (script: [docs/demo_script.md](docs/demo_script.md)) |
+| **Contributions** | Per-person breakdown in [docs/CONTRIBUTIONS.md](docs/CONTRIBUTIONS.md) |
 
 ![Booking succeeded: balance before/after and the audit row written by the trigger](docs/screenshots/02_book_success.png)
 
@@ -33,6 +34,7 @@ We inherited the P2 RideSync backend from Assignment 1 (PostgreSQL + MongoDB) an
 12. [Summary](#12-summary)
 13. [Handover note](docs/handover_note.md)
 14. [API endpoints](docs/api_endpoints.md)
+15. [Contributions breakdown](docs/CONTRIBUTIONS.md)
 
 ---
 
