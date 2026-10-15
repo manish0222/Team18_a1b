@@ -25,7 +25,9 @@ TOTAL_RIDERS = 10000
 TOTAL_VEHICLES = 2500
 TOTAL_TRIPS = 100000
 
-fake = Faker()
+# [A1B] Indian locale: the product is set in Hyderabad
+fake = Faker('en_IN')
+INDIAN_STATES = ['TS', 'TS', 'TS', 'TS', 'TS', 'TS', 'AP', 'AP', 'KA', 'MH', 'TN']
 VEHICLE_CLASSES = ["Standard", "Comfort", "XL", "Executive", "Black"]
 TRIP_STATUSES = ["COMPLETED", "COMPLETED", "COMPLETED", "CANCELLED", "IN_TRANSIT", "REQUESTED"]
 
@@ -53,7 +55,7 @@ def seed_postgres():
         for _ in range(TOTAL_RIDERS):
             r_id = str(uuid.uuid4())
             rider_ids.append(r_id)
-            name = fake.name()
+            name = f"{fake.first_name()} {fake.last_name()}"
             email = f"{r_id[:8]}_{fake.unique.email()}"
             balance = round(random.uniform(20.0, 500.0), 2)
             created_at = fake.date_time_between(start_date="-1y", end_date="now")
@@ -77,7 +79,10 @@ def seed_postgres():
         for i in range(TOTAL_VEHICLES):
             v_id = str(uuid.uuid4())
             vehicle_ids.append(v_id)
-            plate = f"{fake.state_abbr()}-{fake.random_int(1000, 9999)}-{chr(65 + (i % 26))}{chr(65 + ((i // 26) % 26))}"
+            # [A1B] Indian format "TS 09 EK 4821"; the 4 digits are a bijection of i
+            # (7919 is coprime with 9000), so plates stay unique for i < 9000
+            plate = (f"{random.choice(INDIAN_STATES)} {random.randint(1, 38):02d} "
+                     f"{chr(65 + (i % 26))}{chr(65 + ((i // 26) % 26))} {1000 + (i * 7919) % 9000}")
             v_class = random.choice(VEHICLE_CLASSES)
             is_active = random.random() > 0.05
             created_at = fake.date_time_between(start_date="-2y", end_date="-1y")

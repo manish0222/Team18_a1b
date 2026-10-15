@@ -4,7 +4,9 @@
 // ============================================================================
 
 const dbName = 'ridesync_db';
-const db = db.getSiblingDB(dbName);
+// [A1B fix] was `const db = db.getSiblingDB(dbName);` - redeclaring the mongosh
+// global `db` with const reads it before initialisation (ReferenceError).
+db = db.getSiblingDB(dbName);
 
 // Example coordinates for rider location (e.g. Hyderabad, India: Longitude, Latitude)
 // NOTE: GeoJSON format strictly requires [longitude, latitude]

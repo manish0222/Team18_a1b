@@ -1,301 +1,375 @@
-# RideSync - Global Ride-Hailing Network
+# RideSync Console: Assignment 1B Front End
 
-**High-Throughput Hybrid Persistence Architecture (PostgreSQL & MongoDB)**
+A web front end for the inherited **P2 RideSync** database (PostgreSQL + MongoDB). Through a browser, a rider can book a trip, see their wallet history, and top up. An operations user can watch nearby vehicles on a live map, compare vehicle revenue, refresh the earnings snapshot, and read rider reviews.
 
-- **GitHub Repository URL**: [https://github.com/Neelesh-Srivastava435/2026201031_a1.git](https://github.com/Neelesh-Srivastava435/2026201031_a1.git)
-- **Commit Hash**: `5034eab976a9e26b238cd8c91e221732cfb6f720`
+All four Assignment 1 workflows run in the database (stored procedures, triggers, views, window functions, `$geoNear`, and `$facet`); the API in between is deliberately thin.
+We inherited the P2 RideSync backend from Assignment 1 (PostgreSQL + MongoDB) and ran its schema, seeders, procedures, and pipelines locally before building anything. The full story — what worked, what didn't, what we changed, and what we'd suggest to the original authors — is in [`docs/handover_note.md`](docs/handover_note.md). The API surface we designed before writing any UI code is in [`docs/api_endpoints.md`](docs/api_endpoints.md).
+
+| | |
+|---|---|
+| **Team** | Team 18 |
+| **GitHub repository** | https://github.com/manish0222/Team18_a1b (fork of `Neelesh-Srivastava435/2026201031_a1`; Assignment 1 history kept) |
+| **Final commit hash** | `<FILL: run git rev-parse HEAD after final push>` |
+| **Demo video (≤ 5 min)** | `<FILL: video link>` (script: [docs/demo_script.md](docs/demo_script.md)) |
+
+![Booking succeeded: balance before/after and the audit row written by the trigger](docs/screenshots/02_book_success.png)
 
 ---
 
-## 1. Project Overview & Architecture
+## Contents
 
-RideSync manages global ride-hailing persistence across a dual-database architecture:
-1. **PostgreSQL (Structured Engine)**: Enforces ACID guarantees, relational integrity, non-negative wallet balance constraints, automated audit logging via database triggers, conditional partial indexing for concurrent ride restrictions, atomic booking stored procedures with row-level locks, materialized views for lifetime earnings, and SQL window analytics.
-2. **MongoDB (Unstructured & Telemetry Engine)**: Stores high-frequency vehicle telemetry with GeoJSON points, indexed with `2dsphere` for real-time dispatch and a 2-hour TTL auto-expiry index, unstructured inspection metadata, and multi-faceted review analytics pipelines.
+0. [What we inherited and verified](#0-what-we-inherited-and-verified)
+1. [Run it](#1-run-it)
+2. [Design — who uses it, and what it looks like](#2-design--who-uses-it-and-what-it-looks-like)
+3. [Screens and how they map to the workflows](#3-screens-and-how-they-map-to-the-workflows)
+4. [Tests](#4-tests)
+5. [Technology choices](#5-technology-choices)
+6. [Architecture](#6-architecture)
+7. [Assumptions](#7-assumptions)
+8. [Changes to the inherited database](#8-changes-to-the-inherited-database)
+9. [Repository layout](#9-repository-layout)
+10. [Contribution table](#10-contribution-table)
+11. [Known limitations](#11-known-limitations)
+12. [Summary](#12-summary)
+13. [Handover note](docs/handover_note.md)
+14. [API endpoints](docs/api_endpoints.md)
 
 ---
 
-## 2. Repository Structure
+## 0. What we inherited and verified
 
-```text
-.
-├── README.md                           # Setup steps, assumptions, & EXPLAIN plans
-├── requirements.md                     # Project specifications and grading rubric
-├── docs/
-│   ├── relational_erd.png              # Visual diagram of PostgreSQL relational schema
-│   └── mongo_schema_map.json           # Document structure & validation models
-├── sql/
-│   ├── 01_schema_ddl.sql               # Tables, data types, PK/FKs, CHECK constraints
-│   ├── 02_indexes.sql                  # Partial indexes and secondary indexes
-│   ├── 03_triggers_and_audit.sql       # Audit log triggers on wallet balance
-│   ├── 04_stored_procedures.sql        # Workflow 1: Atomic booking stored procedure
-│   ├── 05_materialized_views.sql       # Materialized view definitions & refresh
-│   └── 06_window_analytics.sql         # Workflow 2: Window functions, CTEs, Dense Rank
-├── mongo/
-│   ├── 01_collections_and_indexes.js   # 2dsphere and TTL index creation
-│   ├── 02_workflow3_geonear.js         # Workflow 3: Geospatial aggregation ($geoNear)
-│   └── 03_workflow4_facet.js           # Workflow 4: Multi-faceted analytics ($facet)
-├── data_generation/
-│   ├── postgres_seeder.py              # Generates 100k+ ledger/trip/rider rows
-│   ├── mongo_seeder.py                 # Generates 500k+ geospatial telemetry pings
-│   └── requirements.txt                # Python dependencies
-└── performance/
-    ├── postgres_explain_analyzes.txt   # Raw PostgreSQL EXPLAIN (ANALYZE, BUFFERS) logs
-    └── mongo_execution_stats.json      # Raw MongoDB explain("executionStats") JSON
+Before writing any front-end code, we completed the assignment's Step 1:
+
+- **Ran the inherited backend locally.** We followed the original README, applied the schema (`sql/01`–`06`), loaded MongoDB indexes, ran both Python seeders, and confirmed the four Assignment 1 workflows (booking, window analytics, `$geoNear`, `$facet`) run as documented. The performance evidence in `performance/` matched what we reproduced.
+
+- **Wrote a handover note.** [`docs/handover_note.md`](docs/handover_note.md) lists what worked, what did not (eleven specific issues, including a broken AFTER trigger, an empty seeded audit log, missing SQLSTATEs, random UUIDs in the MongoDB seeder, and a `const db` ReferenceError), what we changed and why, and suggestions for the original authors. Every change is marked `[A1B]` in the source file.
+
+- **Sketched the API before building the UI.** [`docs/api_endpoints.md`](docs/api_endpoints.md) lists every endpoint, its inputs, and its outputs, including how each custom SQLSTATE (`RS001`–`RS007`) maps to an HTTP status and code.
+
+The `docs/handover_note.md` and `docs/api_endpoints.md` files were written before the front end, not after.
+
+## 1. Run it
+
+Choose the setup path that matches your machine. All three paths are intended to reach the same app; use **one** path rather than combining them.
+
+### Option A — One-command bootstrap (recommended for Ubuntu and macOS)
+
+Designed for a fresh **Ubuntu 22.04/24.04** or **macOS** machine with Git and internet access. The bootstrap scripts are intended to install/configure the prerequisites, write `.env`, create the database, run the schema and seeders, back-fill the wallet ledger, and install dependencies. The first setup may take around **15–25 minutes**, depending on the machine and network.
+
+```bash
+git clone https://github.com/manish0222/Team18_a1b.git
+cd Team18_a1b
+
+# Ubuntu
+sudo bash scripts/bootstrap.sh
+
+# macOS (no sudo needed)
+bash scripts/bootstrap.sh
 ```
 
----
+`scripts/bootstrap.sh` detects the operating system and delegates to `bootstrap-ubuntu.sh` or `bootstrap-macos.sh`.
 
-## 3. Assumptions & Design Decisions
+When setup completes, start the app in two terminals:
 
-1. **Workflow 1: Atomic Booking & Escrow Isolation (`sp_book_trip_atomic`)**:
-   - Rather than relying solely on `REPEATABLE READ` transaction isolation (which could throw serialization errors requiring application retries), the stored procedure uses `SELECT ... FOR UPDATE` to acquire an exclusive row-level lock on the rider's record.
-   - This prevents race conditions where two simultaneous ride requests for the same rider could read a stale balance and both succeed.
-   - The deduction places the fare into escrow and automatically trips `trg_audit_wallet_balance`, creating an immutable debit audit log. If the rider's balance drops below `0.00`, PostgreSQL's `chk_wallet_balance_non_negative` constraint triggers an automatic abort and rollback.
-
-2. **Partial Unique Index (`idx_active_rider_trip`)**:
-   - A rider may accumulate unlimited past rides with statuses `'COMPLETED'` or `'CANCELLED'`.
-   - However, at the database engine level, a rider can be in at most **one** active trip simultaneously. This is enforced with:
-     ```sql
-     CREATE UNIQUE INDEX idx_active_rider_trip ON trips (rider_id)
-     WHERE status IN ('REQUESTED', 'IN_TRANSIT');
-     ```
-   - Any attempt to insert a second concurrent active trip throws `duplicate key value violates unique constraint "idx_active_rider_trip"`.
-
-3. **Audit Trigger Logging**:
-   - Implemented via an `AFTER UPDATE OF wallet_balance ON riders` trigger (`trg_audit_wallet_balance`).
-   - Every balance modification logs the rider ID, difference (`v_diff`), action type (`TOPUP_OR_REFUND` vs `DEBIT_OR_ESCROW`), old balance, new balance, and timestamp into `wallet_audit_logs`.
-
-4. **Workflow 2: 7-Day Trailing Moving Average**:
-   - The moving average is computed over the vehicle's last 7 active operating days with completed rides (`ROWS BETWEEN 6 PRECEDING AND CURRENT ROW` partitioned by `vehicle_id` ordered by `trip_date`).
-   - Platform vehicles are ranked daily using `DENSE_RANK() OVER (PARTITION BY trip_date ORDER BY seven_day_moving_avg_revenue DESC)`.
-
-5. **MongoDB TTL and Geospatial Architecture**:
-   - Real-time location logs (`TelemetryPings`) expire automatically after 7,200 seconds (2 hours) via a background TTL index on `created_at`.
-   - Geospatial searches utilize a spherical `2dsphere` index on `location`, enabling sub-millisecond `$geoNear` radius queries within 5,000 meters.
-
----
-
-## 4. Setup & Execution Instructions
-
-### Prerequisites
-- **PostgreSQL 16+** (running on port `5432`)
-- **MongoDB 7.0+** (running on port `27017`)
-- **Python 3.10+**
-
-### Step 1: Environment Configuration
-Create a `.env` file in the project root:
-```env
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
-POSTGRES_DB=ridesync_db
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=your_password
-
-MONGO_URI=mongodb://localhost:27017/
-MONGO_DB=ridesync_db
-
-POSTGRES_SEED_COUNT=100000
-MONGO_SEED_COUNT=500000
+```bash
+# Terminal 1 — API
+cd api
+npm start
+# API health: http://localhost:4000/api/health
 ```
 
-### Step 2: Install Python Dependencies
+```bash
+# Terminal 2 — web app
+cd web
+npm run dev
+# Web app: http://localhost:5173
+```
+
+### Option B — Docker (recommended for Windows and anyone wanting an isolated setup)
+
+Requires **Docker Desktop** (or Docker Engine with the Compose plugin) and internet access. PostgreSQL, MongoDB, Node.js, and Python do not need to be installed on the host.
+
+```bash
+git clone https://github.com/manish0222/Team18_a1b.git
+cd Team18_a1b
+docker compose up --build
+```
+
+- Web app: **http://localhost:8080**
+- API health: **http://localhost:4000/api/health**
+- The first start builds the schema, seeds about 650k rows/documents, and back-fills the wallet ledger. This can take a few minutes; follow progress with `docker compose logs -f seed`.
+- The database containers use host ports **5433** (PostgreSQL) and **27018** (MongoDB), avoiding conflicts with services already using the usual local ports.
+- Data persists in Docker volumes. To reseed from scratch, run `docker compose run --rm -e RESEED=1 seed`.
+- Stop containers with `docker compose down`. Start them again later with `docker compose up`; the data remains in the volumes.
+- **Warning:** `docker compose down -v` also deletes the persisted database volumes and their data.
+
+On Windows, install Docker Desktop from [docker.com](https://www.docker.com/products/docker-desktop/) and use the default WSL 2 backend. A PowerShell bootstrap script (`scripts/bootstrap-windows.ps1`) is also available as an alternative for users who prefer a native Windows install.
+
+### Option C — Manual local installation
+
+Use this route if you prefer to install the dependencies yourself or cannot use the bootstrap/Docker route. The commands below cover Ubuntu/macOS and Windows PowerShell; use the commands for your operating system.
+
+**Prerequisites:** PostgreSQL (use the version supported by the project SQL scripts; PostgreSQL 16 is the documented/tested target), MongoDB 7+ with `mongosh`, Python 3.10+, Node.js 20+, and the command-line tools `psql`, `mongosh`, `python`/`python3`, and `node` on your `PATH`.
+
+#### Ubuntu / macOS
+
+```bash
+# 0. Configuration (shared by seeders and API)
+cp .env.example .env
+# Edit .env and set POSTGRES_PASSWORD and any other required values.
+
+# 1. Create the database
+# Ubuntu (typical local PostgreSQL installation):
+sudo -u postgres createdb ridesync_db
+# macOS (e.g. Homebrew PostgreSQL):
+createdb ridesync_db
+
+# 2. Python dependencies for the seeders
+python3 -m venv venv
+source venv/bin/activate
+pip install -r data_generation/requirements.txt
+
+# 3. Create MongoDB collections and indexes
+mongosh ridesync_db mongo/01_collections_and_indexes.js
+
+# 4. Apply schema, seed data, back-fill the ledger, and run database tests
+bash scripts/setup_db.sh
+```
+
+#### Windows PowerShell
+
+Run PowerShell from the repository root:
+
 ```powershell
+# 0. Configuration
+Copy-Item .env.example .env
+# Edit .env and set POSTGRES_PASSWORD and any other required values.
+
+# 1. Create the database (PostgreSQL tools must be on PATH)
+createdb -U postgres ridesync_db
+
+# 2. Python dependencies for the seeders
 python -m venv venv
 .\venv\Scripts\Activate.ps1
-pip install -r data_generation/requirements.txt
-```
+pip install -r data_generation\requirements.txt
 
-### Step 3: Initialize PostgreSQL Schema
-Execute SQL scripts in sequential order:
-```powershell
-psql -U postgres -d ridesync_db -f sql/01_schema_ddl.sql
-psql -U postgres -d ridesync_db -f sql/02_indexes.sql
-psql -U postgres -d ridesync_db -f sql/03_triggers_and_audit.sql
-psql -U postgres -d ridesync_db -f sql/04_stored_procedures.sql
-psql -U postgres -d ridesync_db -f sql/05_materialized_views.sql
-```
-
-### Step 4: Initialize MongoDB Collections & Indexes
-```powershell
+# 3. Create MongoDB collections and indexes
 mongosh ridesync_db mongo/01_collections_and_indexes.js
+
+# 4. Apply schema, seed data, back-fill the ledger, and run database tests
+powershell -ExecutionPolicy Bypass -File scripts\setup_db.ps1
 ```
 
-### Step 5: Seed Mock Data (100k+ Rows)
-```powershell
-# Seed 10,000 riders, 2,500 vehicles, 100,000 trips
-python data_generation/postgres_seeder.py
+The setup scripts are intended to run the database setup in this order: SQL files `01`–`05` and `07`, PostgreSQL seeding, MongoDB seeding, SQL ledger back-fill (`08`), and a materialized-view refresh. If running the steps manually, follow the order documented in `scripts/setup_db.sh` and the project scripts.
 
-# Seed 500,000 telemetry pings, 50,000 trip reviews
-python data_generation/mongo_seeder.py
+After database setup, start the API and web app in separate terminals:
+
+```bash
+# Terminal 1 — API
+cd api
+npm install
+npm start
+# http://localhost:4000/api/health
 ```
 
-### Step 6: Refresh Materialized Views
-```sql
-REFRESH MATERIALIZED VIEW CONCURRENTLY mv_vehicle_lifetime_earnings;
+```bash
+# Terminal 2 — web app
+cd web
+npm install
+npm run dev
+# http://localhost:5173
 ```
+
+### Platform support at a glance
+
+| Operating system | Recommended path | Alternative |
+|---|---|---|
+| Ubuntu 22.04 / 24.04 | `sudo bash scripts/bootstrap.sh` | Docker or manual local installation |
+| macOS (Intel / Apple Silicon) | `bash scripts/bootstrap.sh` | Docker or manual local installation |
+| Windows 10 / 11 | `.\scripts\bootstrap-windows.ps1` (PowerShell as Administrator) | Docker Desktop or manual setup |
+| Any OS with Docker | `docker compose up --build` | Manual local installation |
+
+### First thing to do in the app
+
+Choose a rider in **“Acting as”** at the top of the sidebar. There is no login; the selected rider is remembered in the browser.
 
 ---
 
-## 5. Workflow Execution & Testing
+## 2. Design — who uses it, and what it looks like
 
-### 🟢 Workflow 1: Atomic Booking Stored Procedure
-Run in `psql` or pgAdmin 4:
-```sql
-DO $$
-DECLARE
-    v_trip_id UUID;
-    v_rider_id UUID;
-    v_vehicle_id UUID;
-BEGIN
-    SELECT id INTO v_rider_id FROM riders WHERE wallet_balance >= 50 LIMIT 1;
-    SELECT id INTO v_vehicle_id FROM vehicles WHERE is_active = TRUE LIMIT 1;
-    
-    CALL sp_book_trip_atomic(v_rider_id, v_vehicle_id, 25.00, v_trip_id);
-    RAISE NOTICE 'Booked Trip ID: %', v_trip_id;
-END $$;
+Before writing any code, we designed for two users:
 
--- Verify immutable audit log:
-SELECT * FROM wallet_audit_logs ORDER BY timestamp DESC LIMIT 1;
-```
+- **Rider** (e.g. "Ananya, commutes daily in HITEC City"): books rides, checks the wallet, tops up, follows or cancels the current trip. Cares about plain words, the balance before and after in large type, and one obvious next step.
+- **Operations team** (a dispatcher and a fleet & quality manager): watches supply on the live map, compares vehicle earnings, refreshes the lifetime snapshot, and reads rider reviews. Cares about dense but readable tables, shareable filter URLs, and data that refreshes without a reload.
 
-### 🟢 Workflow 2: Window Analytics & Dense Ranking
-```powershell
-psql -U postgres -d ridesync_db -f sql/06_window_analytics.sql
-```
+Full write-up: [`docs/design/users.md`](docs/design/users.md).
 
-### 🟢 Workflow 3: Nearest Available Vehicle ($geoNear within 5km)
-```powershell
-mongosh ridesync_db mongo/02_workflow3_geonear.js
-```
+**Wireframes.** Seven low-fidelity wireframes were drawn before any code was written and live in [`docs/design/wireframes/`](docs/design/wireframes/) (also available as an editable HTML file):
 
-### 🟢 Workflow 4: Multi-Faceted Review Analytics ($facet)
-```powershell
-mongosh ridesync_db mongo/03_workflow4_facet.js
-```
+| Wireframe | Screen |
+|---|---|
+| `wf-book.png` | Book a trip (Workflow 1) |
+| `wf-audit.png` | Wallet & audit trail |
+| `wf-analytics.png` | Fleet analytics (Workflow 2 + MV) |
+| `wf-map.png` | Live map (Workflow 3) |
+| `wf-reviews.png` | Reviews & catalog (Workflow 4) |
+| `wf-browse.png` | Browse lists + detail pages |
+| `wf-mobile.png` | Phone layout |
+
+**Look and feel.** Colours, typography, and the reusable component set are defined once in [`docs/design/style_guide.md`](docs/design/style_guide.md) and implemented as design tokens in `web/src/styles/tokens.css`. Every screen is composed from the same small set of components (`Button`, `Panel`, `DataTable`, `Pagination`, `SearchPicker`, `Stat`, `StatusBadge`, `LoadingBlock`, `EmptyState`, `ErrorState`, …) so the look is consistent without a utility-class framework.
+
+## 3. Screens and how they map to the workflows
+
+| Screen | What you can do | Database objects it drives |
+|---|---|---|
+| **Book a trip (Workflow 1)** | Pick a vehicle and fare, then book. See **balance before → after** and the new `wallet_audit_logs` row (marked as written by the trigger). Failures show actionable panels: **insufficient balance** (shortfall and top-up buttons) and **already on a trip** (blocking trip, `idx_active_rider_trip`, and Complete/Cancel buttons). “What the database said” reveals the raw SQLSTATE. | `sp_book_trip_atomic`, `trg_audit_wallet_balance`, `idx_active_rider_trip`, `sp_topup_wallet` |
+| **Trip detail / status buttons** | Move a trip from **Requested → In transit → Completed**, or cancel and refund it. This frees the rider for another booking so the partial unique index can be demonstrated repeatedly. | `sp_update_trip_status` |
+| **Wallet & audit trail** | Read-only ledger for any rider with date filters (presets and custom range), running balance and consistency check, balance-over-time chart, totals in/out, and pagination. | `wallet_audit_logs`, `fn_rider_audit_trail` (window function) |
+| **Fleet analytics (Workflow 2 + materialized view)** | Seven-day moving-average line chart for up to three vehicles; `DENSE_RANK()` table for any day, filterable by class; materialized-view summary with last-refreshed time, a warning about trips completed since refresh, and a **Refresh snapshot** button. | `vw_vehicle_moving_avg`, `vw_vehicle_revenue_ranking`, `mv_vehicle_lifetime_earnings`, `fn_refresh_vehicle_earnings_mv()` |
+| **Live map (Workflow 3)** | Choose a locality or click the map to set the origin. A 5 km circle and nearest available vehicles appear, with a distance-sorted list. Polls every five seconds; newly appearing vehicles are flagged. **Book** opens the booking form with that vehicle selected. | `$geoNear` on `TelemetryPings` (2dsphere index and TTL) |
+| **Reviews & catalog (Workflow 4)** | Rating distribution, top feedback tags, and overall average/standard deviation from one `$facet`, filterable by vehicle/date. Latest reviews list. `VehicleMetadata` is shown as a readable card with features, inspection timeline, and raw JSON toggle. | `$facet` on `TripReviews`, `VehicleMetadata` |
+| **Riders / Vehicles / Trips** | Server-side pagination (25 rows), search, filters and sorting kept in the URL, and a detail page per record. | Indexed SQL; the browser does not load all rows |
+
+Every data view handles loading (skeleton rows), empty (what to do next), and error (message, error code, retry) states. A banner identifies which database is down if either is unreachable. The layout is designed to work at phone width; the 390 px layout was checked for horizontal overflow on every route.
+
+| | |
+|---|---|
+| ![Second active trip blocked](docs/screenshots/03_book_second_active_trip.png) | ![Insufficient balance](docs/screenshots/04_book_insufficient_balance.png) |
+| ![Audit trail](docs/screenshots/05_audit_trail.png) | ![Analytics](docs/screenshots/06_analytics.png) |
+| ![Trip status](docs/screenshots/08_trip_status.png) | ![Riders](docs/screenshots/07_browse_riders.png) |
+
+Phone: [booking](docs/screenshots/09_mobile_book.png) · [audit](docs/screenshots/10_mobile_audit.png).
+
+<!-- **Before submission:** add screenshots of the Live map and Reviews pages captured on your own machine with MongoDB running and map tiles visible. -->
 
 ---
 
-## 6. Performance Proofs & EXPLAIN Benchmark Outputs
+## 4. Tests
 
-### 6.1 PostgreSQL: Partial Unique Index (`idx_active_rider_trip`)
-**Query**:
-```sql
-EXPLAIN (ANALYZE, BUFFERS)
-SELECT * FROM trips 
-WHERE rider_id = (SELECT rider_id FROM trips WHERE status IN ('REQUESTED', 'IN_TRANSIT') LIMIT 1)
-  AND status IN ('REQUESTED', 'IN_TRANSIT');
-```
-**Execution Plan (Hits Index, Zero Seq Scan)**:
+We tested the parts where a mistake could cost money or hide a failure: the booking transaction, failure paths, trip life-cycle, and ledger.
+
+| Suite | Command | What it proves |
+|---|---|---|
+| **Database (9 tests)** | `psql -U postgres -d ridesync_db -f sql/tests/test_workflows.sql` | Booking debits the wallet and the trigger logs `TRIP_ESCROW_DEBIT`; `updated_at` is maintained; a second active trip returns 23505 without changing the balance; invalid status jumps return RS005; cancellation refunds and is logged; insufficient balance returns RS001 without an audit row; zero/negative fare, inactive vehicle, and invalid top-up are rejected; running balance matches `balance_after`; rank 1 is the best moving average. Runs in a transaction that is rolled back. |
+| **API unit (14 tests; no DB needed)** | `cd api && npm test` | One transaction per booking (BEGIN/COMMIT/ROLLBACK); SQLSTATE-to-HTTP mapping and UI context; invalid input rejected before SQL; page-size cap; parameterized search; `$geoNear`/`$facet` pipelines retain required stages; MongoDB down returns 503 while SQL trip pages remain available. |
+| **API integration (6 steps)** | `cd api && npm run test:integration` | Exercises real procedures and trigger: book → blocked second booking → status path → insufficient balance → top-up → cancel/refund → consistent audit trail. Creates and deletes its own rider. |
+| **End-to-end (5 Playwright tests)** | Start API and web, then run `cd web && npx playwright install chromium && npm run test:e2e` | In a real browser: booking success shows before/after balance and trigger audit row; second booking is blocked then unblocked from the error panel; insufficient balance → top-up → success; client-side fare validation; audit page consistency message. |
+
+---
+
+## 5. Technology choices
+
+| Layer | Choice | Why |
+|---|---|---|
+| Front end | **React 19 + TypeScript + Vite** | The team knows React. Types in `web/src/types.ts` mirror API responses and catch shape mistakes early. Vite gives fast reloads and an `/api` proxy. |
+| Routing | Small hash router (`web/src/lib/router.tsx`) | Seven screens do not need a large routing library. Hash URLs work on static hosts, and filters/pages stay in the URL for sharing. |
+| Charts | Hand-written SVG (`components/charts.tsx`) | Three simple chart types, small bundle, accessible labels, and direct control over rendering. |
+| Map | **Leaflet + OpenStreetMap** tiles | Free, no API key, lightweight; used directly because the app needs a circle and markers. |
+| Styling | Plain CSS with design tokens (`styles/tokens.css`) | Keeps screens consistent without requiring a utility-class framework. See `docs/design/style_guide.md`. |
+| API | Node.js `http` + a small router, `pg`, `mongodb` | A thin layer: endpoints call procedures, views, or MongoDB pipelines. Dependency injection (`createApp({pg, mongo})`) lets unit tests run without databases. |
+| Tests | `node:test`, `psql` script, Playwright | Built-in Node test runner, database workflow tests, and browser-level coverage. |
+| Delivery | Docker Compose + `scripts/bootstrap.*` + `scripts/setup_db.*` | One-command option for reviewers, plus a per-OS bootstrap script for machines without Docker. |
+
+---
+
+## 6. Architecture
+
 ```text
-Index Scan using idx_active_rider_trip on trips  (cost=0.59..8.61 rows=1 width=80) (actual time=0.042..0.043 rows=1.00 loops=1)
-  Index Cond: (rider_id = (InitPlan 1).col1)
-  Index Searches: 1
-  Buffers: shared hit=6
-  InitPlan 1
-    ->  Limit  (cost=0.28..0.31 rows=1 width=16) (actual time=0.028..0.028 rows=1.00 loops=1)
-          Buffers: shared hit=3
-          ->  Index Only Scan using idx_active_rider_trip on trips trips_1  (cost=0.28..136.09 rows=3987 width=16) (actual time=0.027..0.027 rows=1.00 loops=1)
-                Heap Fetches: 0
-                Index Searches: 1
-                Buffers: shared hit=3
-Planning Time: 0.258 ms
-Execution Time: 0.069 ms
+Browser (React)  ── /api/* ──▶  API (Node, thin)  ──▶  PostgreSQL
+  hash routes                   validate input          sp_book_trip_atomic, sp_update_trip_status,
+  useApi() hook                 call procedure/view     sp_topup_wallet
+  polling (map every 5 s)       map SQLSTATE → JSON     trg_audit_wallet_balance (+ updated_at trigger)
+                                                        fn_rider_audit_trail, vw_vehicle_moving_avg,
+                                                        vw_vehicle_revenue_ranking, mv_vehicle_lifetime_earnings
+                               ──▶ MongoDB
+                                    $geoNear (TelemetryPings), $facet (TripReviews), VehicleMetadata
+                                    telemetry simulator inserts live pings every 5 s (TTL would empty the map)
 ```
-- **Proof**: Total execution time is **0.069 ms** with only 6 buffer hits, proving that PostgreSQL uses an `Index Scan` on `idx_active_rider_trip` rather than scanning 100,000 table rows.
+
+Business rules stay in the database: the API does not compute balances, decide whether a status change is allowed, or run analytics in JavaScript. The UI shows allowed status buttons from a mirror of the procedure's transition table, but `sp_update_trip_status` makes the final decision and any refusal is displayed.
 
 ---
 
-### 6.2 PostgreSQL: Workflow 2 Window Analytics
-**Query**:
-```sql
-EXPLAIN (ANALYZE, BUFFERS)
--- sql/06_window_analytics.sql
-```
-**Execution Plan Summary**:
+## 7. Assumptions
+
+1. **Indian context.** Currency is ₹ (INR); riders have Indian names and vehicles have Indian (mostly Telangana) plates.
+2. **No authentication.** “Acting as” switches the rider for demos, as allowed by the brief.
+3. **Escrow semantics.** Booking debits the fare into escrow. Completing keeps it (there are no driver payouts in this schema). Cancelling from `REQUESTED` or `IN_TRANSIT` refunds the full fare.
+4. **Trip life-cycle.** `REQUESTED → IN_TRANSIT → COMPLETED`, and `REQUESTED`/`IN_TRANSIT → CANCELLED`. `COMPLETED` and `CANCELLED` are final.
+5. **Seeded ledger.** Seeded cancelled trips are treated as cancelled before payment, so they have no wallet movement. Back-filled history uses top-ups plus one debit per non-cancelled trip and ends at each rider's seeded balance.
+6. **Moving average.** Follows Assignment 1: average of a vehicle's last seven *active days*, not seven calendar days. Ranking is platform-wide even when filtered by class, so filtered ranks can have gaps.
+7. **Nearest vehicle.** The latest available ping per vehicle inside 5 km within the selected window (default 15 minutes). The Part A `$geoNear` stage is unchanged; de-duplication by vehicle is added because pings carry real vehicle IDs.
+8. **Top-ups.** Capped at ₹5,000 per transaction as a demo guard in `sp_topup_wallet`.
+9. **Test data changes.** E2E/integration tests change data (bookings, refunds, top-ups) for one rider. The SQL test suite rolls back its transaction.
+10. **Cross-platform setup.** The one-command bootstrap is provided for Ubuntu, macOS, and Windows. All three paths reach the same application. On Windows, run the PowerShell script as Administrator; on macOS no sudo is needed.
+
+---
+
+## 8. Changes to the inherited database
+
+The handover note explains each change: [docs/handover_note.md](docs/handover_note.md). Every edit is marked `[A1B]` in the file.
+
+| File | Change |
+|---|---|
+| `sql/01_schema_ddl.sql` | `wallet_audit_logs.reference_trip_id` (nullable) |
+| `sql/02_indexes.sql` | `idx_trips_rider_created`, `idx_wallet_audit_reference_trip` |
+| `sql/03_triggers_and_audit.sql` | Fixed `updated_at` (BEFORE trigger); reason-aware action types; `clock_timestamp()` |
+| `sql/04_stored_procedures.sql` | Fare > 0 guard; distinct SQLSTATEs RS001–RS004; audit row linked to trip |
+| `sql/07_frontend_support.sql` | New `sp_update_trip_status`, `sp_topup_wallet`, `fn_rider_audit_trail`, and analytics views |
+| `sql/08_seed_audit_history.sql` | New consistent ledger back-fill for seeded riders |
+| `sql/09_localize_india.sql` | New deterministic Indian rider names/emails and Indian plates for existing seeded data |
+| `data_generation/sync_vehicle_plates.py` | New: copies plates into MongoDB `VehicleMetadata` after `09` |
+| `data_generation/postgres_seeder.py` | `Faker('en_IN')` names and Indian plate format for fresh seeds |
+| `sql/tests/test_workflows.sql` | New database tests |
+| `data_generation/mongo_seeder.py` | Real PostgreSQL IDs, vehicle tracks, idempotent seeding, no future-dated reviews |
+| `mongo/*.js` | `const db = db.getSiblingDB(...)` changed to `db = ...` |
+| `scripts/bootstrap.sh`, `bootstrap-ubuntu.sh`, `bootstrap-macos.sh` | New cross-platform one-command setup |
+| `scripts/setup_db.sh`, `setup_db.ps1`, `check_prereqs.ps1` | New database setup and prerequisite checker |
+| `api/`, `web/`, `docker-compose.yml` | New API layer, React front end, and container orchestration |
+
+The original Assignment 1 README is kept at [docs/assignment1_README.md](docs/assignment1_README.md).
+
+---
+
+## 9. Repository layout
+
 ```text
-Sort  (cost=45857.66..46037.67 rows=72003 width=110) (actual time=311.074..344.760 rows=61650.00 loops=1)
-  Sort Key: moving_average_calc.trip_date DESC, (dense_rank() OVER w1)
-  Sort Method: external merge  Disk: 4376kB
-  Buffers: shared hit=1428, temp read=1819 written=2170
-  ->  WindowAgg  (cost=34422.50..35862.54 rows=72003 width=110) (actual time=311.074..344.760 rows=61650.00 loops=1)
-        Window: w1 AS (PARTITION BY moving_average_calc.trip_date ORDER BY moving_average_calc.seven_day_moving_avg_revenue ROWS UNBOUNDED PRECEDING)
-        Storage: Memory  Maximum Storage: 17kB
-        Buffers: shared hit=1425, temp read=1272 written=1622
-        ->  Sort  (cost=34422.48..34602.49 rows=72003 width=102) (actual time=311.054..319.246 rows=61650.00 loops=1)
-              Sort Key: moving_average_calc.trip_date, moving_average_calc.seven_day_moving_avg_revenue DESC
-              Sort Method: external merge  Disk: 3752kB
-              Buffers: shared hit=1425, temp read=1272 written=1622
-              ->  Subquery Scan on moving_average_calc  (cost=22332.29..24672.37 rows=72003 width=102) (actual time=191.803..252.820 rows=61650.00 loops=1)
-Planning Time: 4.322 ms
-Execution Time: 472.318 ms
+├── README.md                    this file
+├── docker-compose.yml           postgres, mongo, mongo-init, seed, api, web
+├── .env.example                 shared settings (seeders + API)
+├── docs/
+│   ├── handover_note.md         what worked / changes / suggestions
+│   ├── api_endpoints.md         endpoint list with inputs and outputs
+│   ├── demo_script.md           5-minute demo walkthrough
+│   ├── design/                  users.md, style_guide.md, wireframes/
+│   ├── screenshots/
+│   └── assignment1_README.md    original README (unchanged)
+├── sql/  mongo/  data_generation/  performance/
+├── scripts/                     bootstrap and database setup scripts
+├── api/                         Node API: routes, telemetry simulator, tests
+└── web/                         React app: pages, components, e2e tests
 ```
 
 ---
 
-### 6.3 MongoDB: Workflow 3 ($geoNear Geospatial Index)
-**Query**:
-```javascript
-db.TelemetryPings.explain("executionStats").aggregate([
-  {
-    $geoNear: {
-      near: { type: "Point", coordinates: [78.3820, 17.4435] },
-      distanceField: "distance_meters",
-      maxDistance: 5000,
-      spherical: true
-    }
-  },
-  { $limit: 10 }
-]);
-```
-**Execution Stats Summary**:
-```json
-{
-  "stage": "GEO_NEAR_2DSPHERE",
-  "indexName": "idx_telemetry_2dsphere",
-  "keyPattern": { "location": "2dsphere" },
-  "executionSuccess": true,
-  "nReturned": 5684,
-  "executionTimeMillis": 59,
-  "executionStages": {
-    "stage": "GEO_NEAR_2DSPHERE",
-    "indexName": "idx_telemetry_2dsphere",
-    "searchIntervals": [
-      { "minDistance": 0, "maxDistance": 53.25, "nReturned": 8 },
-      { "minDistance": 53.25, "maxDistance": 159.76, "nReturned": 25 },
-      { "minDistance": 159.76, "maxDistance": 372.78, "nReturned": 142 }
-    ]
-  }
-}
-```
-- **Proof**: Winning plan is `GEO_NEAR_2DSPHERE` hitting `idx_telemetry_2dsphere`. Evaluates 500,000 pings in **59 ms** with concentric spherical search rings. Zero collection scans (`COLLSCAN`).
+## 10. Contribution Table
+
+| Member | Roll No. |
+|---|---|
+| PALAKSH GHILDIYAL | 2026 |
+| MANISH GODBOLE | 2026201064 |
+| GREESHMA TRIVEDI | 2026 |
+| SAI HARSHITH YEKOJI | 2026 |
 
 ---
 
-### 6.4 MongoDB: Workflow 4 ($facet Multi-Branch Analytics)
-**Execution Stats Summary**:
-```json
-{
-  "executionSuccess": true,
-  "nReturned": 50000,
-  "executionTimeMillis": 299,
-  "totalDocsExamined": 50000,
-  "pipelineOutput": {
-    "rating_distribution": [
-      { "stars": 5, "count": 24900 },
-      { "stars": 4, "count": 12443 },
-      { "stars": 3, "count": 5970 },
-      { "stars": 2, "count": 4149 },
-      { "stars": 1, "count": 2538 }
-    ],
-    "overall_summary": [
-      {
-        "total_reviews": 50000,
-        "average_rating": 4.06,
-        "std_dev_rating": 1.18
-      }
-    ]
-  }
-}
-```
-- **Proof**: Aggregates all 50,000 reviews across rating distribution, unwound feedback tags, and standard deviation in a single pass taking **299 ms**.
+## 11. Known limitations
+
+- No real authentication or authorization. Anyone can act as any rider.
+- The materialized view changes only when refreshed. This is intentional; the UI shows how stale it is.
+- The live-ping simulator is demo scaffolding. In production, pings would come from driver apps.
+- The ranking query computes all vehicles' moving averages for the selected day (about 0.3 seconds on 100k trips). Larger datasets may need a materialized daily table.
+- The Live map needs internet access for OpenStreetMap tiles. Without internet, markers may still appear on a blank background.
+
+## 12. Summary
+ We chose technologies that keep the API thin and the database central. React and Vite give the team a familiar, fast front end. Node's built-in `http` and two runtime dependencies (`pg`, `mongodb`) let every route be a handful of lines that call a stored procedure, view, or MongoDB pipeline — no business logic in JavaScript. Hand-written SVG charts and a direct Leaflet integration keep the front-end bundle small and explainable. Docker Compose and the per-OS bootstrap scripts make the setup reproducible. The two databases do the work the assignment asks for: PostgreSQL for transactions, constraints, triggers, and window analytics; MongoDB for high-frequency geospatial telemetry, flexible catalog documents, and faceted reviews.

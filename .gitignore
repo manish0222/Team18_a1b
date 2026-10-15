@@ -26,10 +26,21 @@ dump/
 .DS_Store
 Thumbs.db
 .idea/
-.vscode/
+.vscode/*
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+!.vscode/settings.json
 *.swp
 *.swo
 
 # Antigravity & Agent workspace artifacts
 .agents/
 .gemini/
+
+# Assignment 1B front end / API
+node_modules/
+dist/
+test-results/
+playwright-report/
+*.tsbuildinfo

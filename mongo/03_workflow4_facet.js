@@ -4,7 +4,9 @@
 // ============================================================================
 
 const dbName = 'ridesync_db';
-const db = db.getSiblingDB(dbName);
+// [A1B fix] was `const db = db.getSiblingDB(dbName);` - redeclaring the mongosh
+// global `db` with const reads it before initialisation (ReferenceError).
+db = db.getSiblingDB(dbName);
 
 print("Running multi-faceted review analytics pipeline on TripReviews...");
 

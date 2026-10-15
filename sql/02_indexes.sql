@@ -15,3 +15,13 @@ CREATE INDEX IF NOT EXISTS idx_trips_vehicle_id_status ON trips (vehicle_id, sta
 CREATE INDEX IF NOT EXISTS idx_trips_created_at ON trips (created_at);
 CREATE INDEX IF NOT EXISTS idx_wallet_audit_rider_timestamp ON wallet_audit_logs (rider_id, timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_vehicles_is_active ON vehicles (is_active);
+
+-- 3. [A1B change] Rider trip history. The only index on trips.rider_id was the
+-- partial unique index (active trips only), so "show this rider's trips"
+-- (rider detail page, trips browse filtered by rider) was a sequential scan
+-- over 100k rows.
+CREATE INDEX IF NOT EXISTS idx_trips_rider_created ON trips (rider_id, created_at DESC);
+
+-- 4. [A1B change] Audit rows for a given booking (shown after checkout).
+CREATE INDEX IF NOT EXISTS idx_wallet_audit_reference_trip ON wallet_audit_logs (reference_trip_id)
+WHERE reference_trip_id IS NOT NULL;

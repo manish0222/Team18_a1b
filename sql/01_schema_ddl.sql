@@ -32,7 +32,13 @@ CREATE TABLE wallet_audit_logs (
     action_type VARCHAR(50) NOT NULL, -- 'TOPUP', 'TRIP_ESCROW_DEBIT', 'TRIP_REFUND', 'ADJUSTMENT'
     balance_before NUMERIC(10, 2) NOT NULL,
     balance_after NUMERIC(10, 2) NOT NULL,
-    timestamp TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+    timestamp TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    -- [A1B change] Optional link to the trip that caused this wallet movement
+    -- (escrow debit / refund). Filled by the trigger from a transaction-local
+    -- setting so the UI can show "this audit row belongs to this booking".
+    -- No FK because trips is created after this table and audit rows must
+    -- survive even if a trip were ever archived.
+    reference_trip_id UUID
 );
 
 -- 3. Vehicles Table
